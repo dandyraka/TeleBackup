@@ -25,7 +25,7 @@ async function download(url, path) {
 
 function folderCategory(mime){
     let folder;
-    if((/document/g).test(mime)){
+    if((/document|pdf|powerpoint|msword|presentation/g).test(mime)){
         folder = "Document";
     } else if((/image/g).test(mime)){
         folder = "Photo";
@@ -35,6 +35,8 @@ function folderCategory(mime){
         folder = "Audio";
     } else if((/text/g).test(mime)){
         folder = "Text";
+    } else if((/zip|rar|7z/g).test(mime)){
+        folder = "Compressed";
     } else {
         folder = "Other";
     }
