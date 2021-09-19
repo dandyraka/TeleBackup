@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Telegraf } = require('telegraf');
+const { Telegraf, Markup } = require('telegraf');
 const fs = require('fs-extra');
 const fetch = require('node-fetch');
 
@@ -25,7 +25,7 @@ async function download(url, path) {
 
 function folderCategory(mime){
     let folder;
-    if((/document|pdf|powerpoint|msword|presentation/g).test(mime)){
+    if((/document|pdf|powerpoint|msword|presentation|excel|sheet/g).test(mime)){
         folder = "Document";
     } else if((/image/g).test(mime)){
         folder = "Photo";
@@ -45,6 +45,7 @@ function folderCategory(mime){
 
 bot.start((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
 bot.help((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
+bot.command('download', (ctx) => ctx.reply('URL?', Markup.forceReply(true).selective(true)));
 
 bot.on('document', async (ctx) => {
     const { message: { from: { username, first_name }, document: { file_name, mime_type, file_id }}} = ctx;
@@ -75,6 +76,28 @@ bot.on('video', async (ctx) => {
     console.log(`[!] Result : ${save}`);
     await ctx.reply(save);
     await ctx.deleteMessage(message_id);
+});
+
+bot.on('text', async (ctx) => {
+    const { message: { reply_to_message, text, from: { username, first_name } } } = ctx
+    if (reply_to_message && reply_to_message.text === "URL?") {
+        console.log(`[+] From : ${username} | ${text}`);
+        const regex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=\+\$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=\+\$,\w]+@)[A-Za-z0-9.-]+)((?:\/[\+~%\/.\w-_]*)?\??(?:[-\+=&;%@.\w_]*)#?(?:[\w]*))?)/g;
+        if(regex.test(text)){
+            const { message_id } = await ctx.reply(`Processing...`);
+            let filename = new URL(text).pathname.split('/').pop();
+            if(filename) {
+                const save = await download(text, `${savePath}/${first_name}/Downloads/${filename}`);
+                console.log(`[!] Result : ${save}`);
+                await ctx.reply(save);
+            } else {
+                await ctx.reply("I think it's not downloadable file.");
+            }
+            await ctx.deleteMessage(message_id);
+        } else {
+            await ctx.reply("Invalid URL!");
+        }
+    }
 });
 
 bot.launch();
