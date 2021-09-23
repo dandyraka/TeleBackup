@@ -70,7 +70,6 @@ bot.command('download', (ctx) => ctx.reply('URL?', Markup.forceReply(true).selec
 bot.on('document', async (ctx) => {
     const { message: { from: { id, username, first_name }, document: { file_name, mime_type, file_id }}} = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
-    console.log(file_name)
     const { message_id } = await ctx.reply(`Processing...`);
     const folder = folderCategory(mime_type);
     console.log(`[+] From : ${username} | ${mime_type}`);
