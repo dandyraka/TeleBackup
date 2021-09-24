@@ -128,3 +128,11 @@ bot.on('text', async (ctx) => {
 });
 
 bot.launch();
+
+bot.catch((err, ctx) => {
+    console.error('Error!');
+    ctx.reply("BOT Error!");
+});
+
+process.once('SIGINT', () => bot.stop('SIGINT'))
+process.once('SIGTERM', () => bot.stop('SIGTERM'))
