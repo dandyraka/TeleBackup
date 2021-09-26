@@ -61,5 +61,6 @@ typings/
 .next
 *.lock
 
+package-lock.json
 Storage/*
 queue.json

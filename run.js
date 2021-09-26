@@ -1,12 +1,14 @@
 require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const fs = require('fs-extra');
-const fetch = require('node-fetch');
+//const fetch = require('node-fetch');
+const fetch = require('node-fetch-retry');
 const Progress = require('node-fetch-progress');
 const { getMediaLink } = require('gddirecturl');
 const low = require('lowdb');
 const FileSync = require('lowdb/adapters/FileSync');
 const cron = require('node-cron');
+//const zippy = require('zippydamn-lib');
 
 const db_queue = new FileSync('./queue.json');
 const db = low(db_queue);
@@ -48,8 +50,9 @@ async function download(url, path, chatid, mesid) {
 }
 
 async function downloadQueue(queid, url, path, chatid) {
-    let result;
-    const response = await fetch(url);
+    db.get('queue').find({ id: queid }).assign({ isOnQueue: true}).write()
+    let opts = { method: 'GET',  retry: 3, callback: retry => { console.log(`Trying: ${retry}`) } }
+    const response = await fetch(url, opts);
     const disposition = response.headers.get('content-disposition');
     const filename = (disposition) ? disposition.match(/filename="(.*?)"/) : false;
     let fixPath = (filename) ? path+filename[1] : path;
@@ -61,7 +64,7 @@ async function downloadQueue(queid, url, path, chatid) {
         result = "Error saving file!";
     });
     bot.telegram.sendMessage(chatid, `<b>Queue Status</b>\n\n<b>Queue ID:</b> ${queid}\n<b>Result:</b>\n${result}`, { parse_mode: 'html' });
-    db.get('queue').remove({ id: queid }).write();
+    db.get('queue').remove({ id: queid, isOnQueue: true }).write();
 }
 
 function folderCategory(mime){
@@ -132,12 +135,15 @@ bot.on('text', async (ctx) => {
                     const gdriveId = text.match(/[-\w]{25,}/);
                     const gdriveDirect = await getMediaLink(gdriveId[0]);
                     downloadUrl = gdriveDirect.src;
-                } else {
+                } /*else if((/zippyshare.com\/.*?\/.*?\/file.html/gi).test(text)){
+                    const zip = await zippy.extract(text);
+                    downloadUrl = (zip.success) ? 'https://'+zip.result : "error";
+                } */else {
                     downloadUrl = text;
                 }
-                const find = db.get('queue').value();
-                let queueId = parseInt(find.length)+1;
-                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, path: `${savePath}/${first_name}/Downloads/${filename}` }).write();
+
+                let queueId = (Math.random() + 1).toString(36).substring(7);
+                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, path: `${savePath}/${first_name}/Downloads/${filename}`, isOnQueue: false }).write();
                 (addque) ? await ctx.reply(`Added to queue with id : ${queueId}`) : await ctx.reply("Fail to add queue");
             } else {
                 await ctx.reply("I think it's not downloadable file.");
@@ -151,11 +157,12 @@ bot.on('text', async (ctx) => {
 
 cron.schedule(`* * * * *`, () => {
     async function dlQue(){
-        const getQue = db.get('queue').value()[0];
+        const getQue = db.get('queue').find({ isOnQueue: false }).value();
         if(getQue){
             console.log(`[!] Processing queue with ID : ${getQue.id}`);
             await bot.telegram.sendMessage(getQue.chatid, `Processing queue with ID : ${getQue.id}`);
             await downloadQueue(getQue.id, getQue.link, getQue.path, getQue.chatid);
+            console.log(`[-] Queue ID (${getQue.id}) process complete `);
         }
     }
     dlQue();
@@ -164,7 +171,7 @@ cron.schedule(`* * * * *`, () => {
 bot.launch();
 
 bot.catch((err, ctx) => {
-    console.error('Error!');
+    console.error('Error!', err);
     ctx.reply("BOT Error!");
 });
 
