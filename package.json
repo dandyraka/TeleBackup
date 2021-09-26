@@ -8,6 +8,8 @@
     "fs": "^0.0.1-security",
     "fs-extra": "^10.0.0",
     "gddirecturl": "^0.0.5",
+    "lowdb": "^1.0.0",
+    "node-cron": "^3.0.0",
     "node-fetch": "^2.6.2",
     "node-fetch-progress": "^1.0.2",
     "telegraf": "^4.4.2"

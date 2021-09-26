@@ -4,6 +4,13 @@ const fs = require('fs-extra');
 const fetch = require('node-fetch');
 const Progress = require('node-fetch-progress');
 const { getMediaLink } = require('gddirecturl');
+const low = require('lowdb');
+const FileSync = require('lowdb/adapters/FileSync');
+const cron = require('node-cron');
+
+const db_queue = new FileSync('./queue.json');
+const db = low(db_queue);
+db.defaults({ queue: []}).write();
 
 const users = process.env.grantedUsers
 const special_user = users.split('|');
@@ -17,7 +24,7 @@ async function download(url, path, chatid, mesid) {
     const response = await fetch(url);
     //const mime = response.headers.get('content-type');
     const disposition = response.headers.get('content-disposition');
-    const filename = (disposition) ? disposition.match(/filename="(.*?)"/) : false;//1
+    const filename = (disposition) ? disposition.match(/filename="(.*?)"/) : false;
     let fixPath = (filename) ? path+filename[1] : path;
     const progress = new Progress(response, { throttle: 100 })
     progress.on('progress', async (p) => {
@@ -29,9 +36,6 @@ async function download(url, path, chatid, mesid) {
         if(persen%20==0 && persen != 100){
             await bot.telegram.editMessageText(chatid, mesid, null, estimasi, { parse_mode: 'html' });
         }
-        process.stdout.write(
-            `${Math.floor(p.progress * 100)}% - ${p.doneh}/${p.totalh} - ${p.rateh} - ${p.etah}                       \r`
-        )
     })
     const buffer = await response.buffer();
     await fs.outputFile(fixPath, buffer, {flag: 'a'}).then(() => {
@@ -41,6 +45,23 @@ async function download(url, path, chatid, mesid) {
         result = "Error saving file!";
     });
     return result;
+}
+
+async function downloadQueue(queid, url, path, chatid) {
+    let result;
+    const response = await fetch(url);
+    const disposition = response.headers.get('content-disposition');
+    const filename = (disposition) ? disposition.match(/filename="(.*?)"/) : false;
+    let fixPath = (filename) ? path+filename[1] : path;
+    const buffer = await response.buffer();
+    await fs.outputFile(fixPath, buffer, {flag: 'a'}).then(() => {
+        result = `Saved to ${fixPath}`;
+    }).catch(err => {
+        console.log(err)
+        result = "Error saving file!";
+    });
+    bot.telegram.sendMessage(chatid, `<b>Queue Status</b>\n\n<b>Queue ID:</b> ${queid}\n<b>Result:</b>\n${result}`, { parse_mode: 'html' });
+    db.get('queue').remove({ id: queid }).write();
 }
 
 function folderCategory(mime){
@@ -87,14 +108,14 @@ bot.on('photo', async (ctx) => {
 bot.on('video', async (ctx) => {
     const { message: { from: { id, username, first_name }, video: { file_name, mime_type, file_id }}} = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
-    const { message_id } = await ctx.reply(`Processing...`);
     const folder = folderCategory(mime_type);
     console.log(`[+] From : ${username} | ${mime_type}`);
     const fileUrl = await ctx.telegram.getFileLink(file_id);
-    const save = await download(fileUrl.href, `${savePath}/${first_name}/${folder}/${file_name}`, id, message_id);
-    console.log(`[!] Result : ${save}`);
-    await ctx.reply(save);
-    await ctx.deleteMessage(message_id);
+
+    const find = db.get('queue').value();
+    let queueId = parseInt(find.length)+1;
+    const addque = db.get('queue').push({ id: queueId, chatid: id, link: fileUrl.href, path: `${savePath}/${first_name}/${folder}/${file_name}` }).write();
+    (addque) ? await ctx.reply(`Added to queue with id : ${queueId}`) : await ctx.reply("Fail to add queue");
 });
 
 bot.on('text', async (ctx) => {
@@ -114,9 +135,10 @@ bot.on('text', async (ctx) => {
                 } else {
                     downloadUrl = text;
                 }
-                const save = await download(downloadUrl, `${savePath}/${first_name}/Downloads/${filename}`, id, message_id);
-                console.log(`[!] Result : ${save}`);
-                await ctx.reply(save);
+                const find = db.get('queue').value();
+                let queueId = parseInt(find.length)+1;
+                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, path: `${savePath}/${first_name}/Downloads/${filename}` }).write();
+                (addque) ? await ctx.reply(`Added to queue with id : ${queueId}`) : await ctx.reply("Fail to add queue");
             } else {
                 await ctx.reply("I think it's not downloadable file.");
             }
@@ -125,6 +147,18 @@ bot.on('text', async (ctx) => {
             await ctx.reply("Invalid URL!");
         }
     }
+});
+
+cron.schedule(`* * * * *`, () => {
+    async function dlQue(){
+        const getQue = db.get('queue').value()[0];
+        if(getQue){
+            console.log(`[!] Processing queue with ID : ${getQue.id}`);
+            await bot.telegram.sendMessage(getQue.chatid, `Processing queue with ID : ${getQue.id}`);
+            await downloadQueue(getQue.id, getQue.link, getQue.path, getQue.chatid);
+        }
+    }
+    dlQue();
 });
 
 bot.launch();
