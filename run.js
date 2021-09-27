@@ -87,9 +87,31 @@ function folderCategory(mime){
     return folder;
 }
 
+function fileList(path){
+    let list = '';
+    const getUser = fs.readdirSync(path);
+    getUser.forEach(user => {
+        list += `• <b>${user}</b>\n`;
+        const getBackup = fs.readdirSync(`${path}/${user}`);
+        getBackup.forEach(backupFolder => {
+            const countBackup = fs.readdirSync(`${path}/${user}/${backupFolder}`);
+            list += `${backupFolder}: ${countBackup.length}\n`;
+        });
+    });
+    list = list.replace(/[^]•/, "\n\n•");
+    return list;
+}
+
 bot.start((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
 bot.help((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
 bot.command('download', (ctx) => ctx.reply('URL?', Markup.forceReply(true).selective(true)));
+
+bot.command('stats', async (ctx) => {
+    const { message: { from: { id, username, first_name }}} = ctx;
+    if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
+    const countFiles = fileList(savePath);
+    await ctx.replyWithHTML(countFiles);
+});
 
 bot.on('document', async (ctx) => {
     const { message: { from: { id, username, first_name }, document: { file_name, mime_type, file_id }}} = ctx;
