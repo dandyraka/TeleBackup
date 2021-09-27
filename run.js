@@ -95,7 +95,7 @@ function fileList(path){
         const getBackup = fs.readdirSync(`${path}/${user}`);
         getBackup.forEach(backupFolder => {
             const countBackup = fs.readdirSync(`${path}/${user}/${backupFolder}`);
-            list += `${backupFolder}: ${countBackup.length}\n`;
+            list += `${backupFolder}: ${countBackup.length} files\n`;
         });
     });
     list = list.replace(/[^]•/, "\n\n•");
