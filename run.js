@@ -107,18 +107,22 @@ bot.help((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
 bot.command('download', (ctx) => ctx.reply('URL?', Markup.forceReply(true).selective(true)));
 
 bot.command('stats', async (ctx) => {
-    const { message: { from: { id, username, first_name }}} = ctx;
+    const { message: { from: { username }}} = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
     const countFiles = fileList(savePath);
     await ctx.replyWithHTML(countFiles);
 });
 
 bot.on('document', async (ctx) => {
-    const { message: { from: { id, username, first_name }, document: { file_name, mime_type, file_id }}} = ctx;
+    const { message: { from: { id, username, first_name }, document: { file_name, mime_type, file_id, file_size }}} = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
     const { message_id } = await ctx.reply(`Processing...`);
     const folder = folderCategory(mime_type);
     console.log(`[+] From : ${username} | ${mime_type}`);
+    let filesizeToMB = (file_size/1024/1024).toPrecision(4);
+    if(filesizeToMB > 20){
+        return await ctx.reply(`File is too big`);
+    }
     const fileUrl = await ctx.telegram.getFileLink(file_id);
     const save = await download(fileUrl.href, `${savePath}/${first_name}/${folder}/${file_name}`, id, message_id);
     console.log(`[!] Result : ${save}`);
@@ -131,12 +135,15 @@ bot.on('photo', async (ctx) => {
 });
 
 bot.on('video', async (ctx) => {
-    const { message: { from: { id, username, first_name }, video: { file_name, mime_type, file_id }}} = ctx;
+    const { message: { from: { id, username, first_name }, video: { file_name, mime_type, file_id, file_size }}} = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
     const folder = folderCategory(mime_type);
     console.log(`[+] From : ${username} | ${mime_type}`);
+    let filesizeToMB = (file_size/1024/1024).toPrecision(4);
+    if(filesizeToMB > 20){
+        return await ctx.reply(`File is too big`);
+    }
     const fileUrl = await ctx.telegram.getFileLink(file_id);
-
     const find = db.get('queue').value();
     let queueId = parseInt(find.length)+1;
     const addque = db.get('queue').push({ id: queueId, chatid: id, link: fileUrl.href, path: `${savePath}/${first_name}/${folder}/${file_name}` }).write();
