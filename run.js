@@ -8,7 +8,7 @@ const { getMediaLink } = require('gddirecturl');
 const low = require('lowdb');
 const FileSync = require('lowdb/adapters/FileSync');
 const cron = require('node-cron');
-//const zippy = require('zippydamn-lib');
+const zippy = require('zs-extract');
 
 const db_queue = new FileSync('./queue.json');
 const db = low(db_queue);
@@ -152,6 +152,7 @@ bot.on('video', async (ctx) => {
 
 bot.on('text', async (ctx) => {
     let downloadUrl;
+    let serv = "none";
     const { message: { reply_to_message, text, from: { id, username, first_name } } } = ctx
     if (reply_to_message && reply_to_message.text === "URL?") {
         console.log(`[+] From : ${username} | ${text}`);
@@ -161,19 +162,23 @@ bot.on('text', async (ctx) => {
             let filename = new URL(text).pathname.split('/').pop();
             if(filename) {
                 if((/drive.google.com/gi).test(text)){
+                    serv = "Google Drive";
                     const gdriveId = text.match(/[-\w]{25,}/);
                     const gdriveDirect = await getMediaLink(gdriveId[0]);
                     downloadUrl = gdriveDirect.src;
-                } /*else if((/zippyshare.com\/.*?\/.*?\/file.html/gi).test(text)){
+                } else if((/zippyshare.com\/.*?\/.*?\/file.html/gi).test(text)){
+                    serv = "Zippyshare";
                     const zip = await zippy.extract(text);
-                    downloadUrl = (zip.success) ? 'https://'+zip.result : "error";
-                } */else {
+                    downloadUrl = (zip.download) ? zip.download : false;
+                    filename = (downloadUrl) ? zip.filename : filename;
+                } else {
                     downloadUrl = text;
                 }
 
                 let queueId = (Math.random() + 1).toString(36).substring(7);
                 const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, path: `${savePath}/${first_name}/Downloads/${filename}`, isOnQueue: false }).write();
-                (addque) ? await ctx.reply(`Added to queue with id : ${queueId}`) : await ctx.reply("Fail to add queue");
+                let extn = (serv == "none") ? `` : `\n<b>Service:</b> ${serv}\n<b>Download url:</b> ${downloadUrl}`;
+                (addque) ? await ctx.replyWithHTML(`Added to queue with id ( <b>${queueId}</b> )${extn}`, { disable_web_page_preview: true }) : await ctx.reply("Fail to add queue");
             } else {
                 await ctx.reply("I think it's not downloadable file.");
             }
