@@ -106,6 +106,38 @@ bot.start((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
 bot.help((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
 bot.command('download', (ctx) => ctx.reply('URL?', Markup.forceReply(true).selective(true)));
 
+bot.command('dl', async (ctx) => {
+    let downloadUrl;
+    let serv = "none";
+    const { message: { reply_to_message, from: { id, username, first_name } } } = ctx;
+    if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
+    if (reply_to_message) {
+        const { message_id } = await ctx.reply(`Processing...`);
+        const urls = reply_to_message.text.match(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g);
+        urls.forEach(async (url) => {
+            let filename = new URL(url).pathname.split('/').pop();
+            if(filename) {
+                if((/zippyshare.com\/.*?\/.*?\/file.html/gi).test(url)){
+                    serv = "Zippyshare";
+                    const zip = await zippy.extract(url);
+                    downloadUrl = (zip.download) ? zip.download : false;
+                    filename = (downloadUrl) ? zip.filename : filename;
+                } else {
+                    downloadUrl = url;
+                }
+
+                let queueId = (Math.random() + 1).toString(36).substring(7);
+                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, path: `${savePath}/${first_name}/Downloads/${filename}`, isOnQueue: false }).write();
+                let extn = (serv == "none") ? `` : `\n<b>Service:</b> ${serv}\n<b>Download url:</b> ${downloadUrl}`;
+                (addque) ? await ctx.replyWithHTML(`Added to queue with id ( <b>${queueId}</b> )${extn}`, { disable_web_page_preview: true }) : await ctx.reply("Fail to add queue");
+            } else {
+                await ctx.reply("I think it's not downloadable file.");
+            }
+        });
+        await ctx.deleteMessage(message_id);
+    }
+});
+
 bot.command('stats', async (ctx) => {
     const { message: { from: { username }}} = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
@@ -154,6 +186,7 @@ bot.on('text', async (ctx) => {
     let downloadUrl;
     let serv = "none";
     const { message: { reply_to_message, text, from: { id, username, first_name } } } = ctx
+    if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
     if (reply_to_message && reply_to_message.text === "URL?") {
         console.log(`[+] From : ${username} | ${text}`);
         const regex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=\+\$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=\+\$,\w]+@)[A-Za-z0-9.-]+)((?:\/[\+~%\/.\w-_]*)?\??(?:[-\+=&;%@.\w_]*)#?(?:[\w]*))?)/g;
