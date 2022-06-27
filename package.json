@@ -7,13 +7,17 @@
     "dotenv": "^16.0.1",
     "fs": "^0.0.1-security",
     "fs-extra": "^10.1.0",
-    "gddirecturl": "^0.0.5",
     "lowdb": "^1.0.0",
-    "node-cron": "^3.0.0",
-    "node-fetch": "^3.2.4",
+    "node-cron": "^3.0.1",
+    "node-fetch": "^3.2.6",
     "node-fetch-progress": "^1.0.2",
     "node-fetch-retry": "^2.0.0",
-    "telegraf": "^4.8.2",
+    "systeminformation": "^5.11.22",
+    "telegraf": "^4.8.5",
+    "uuid": "^8.3.2",
     "zs-extract": "^1.4.1"
+  },
+  "devDependencies": {
+    "@types/uuid": "^8.3.4"
   }
 }

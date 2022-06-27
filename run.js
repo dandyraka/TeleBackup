@@ -4,11 +4,11 @@ const fs = require('fs-extra');
 //const fetch = require('node-fetch');
 const fetch = require('node-fetch-retry');
 const Progress = require('node-fetch-progress');
-const { getMediaLink } = require('gddirecturl');
 const low = require('lowdb');
 const FileSync = require('lowdb/adapters/FileSync');
 const cron = require('node-cron');
 const zippy = require('zs-extract');
+const sysStats = require('./linux.js');
 
 const db_queue = new FileSync('./queue.json');
 const db = low(db_queue);
@@ -138,6 +138,13 @@ bot.command('dl', async (ctx) => {
     }
 });
 
+bot.command('status', async (ctx) => {
+    const { message: { from: { username }}} = ctx;
+    if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
+    const stat = await sysStats();
+    await ctx.replyWithHTML(stat);
+});
+
 bot.command('stats', async (ctx) => {
     const { message: { from: { username }}} = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
@@ -194,12 +201,7 @@ bot.on('text', async (ctx) => {
             const { message_id } = await ctx.reply(`Processing...`);
             let filename = new URL(text).pathname.split('/').pop();
             if(filename) {
-                if((/drive.google.com/gi).test(text)){
-                    serv = "Google Drive";
-                    const gdriveId = text.match(/[-\w]{25,}/);
-                    const gdriveDirect = await getMediaLink(gdriveId[0]);
-                    downloadUrl = gdriveDirect.src;
-                } else if((/zippyshare.com\/.*?\/.*?\/file.html/gi).test(text)){
+                if((/zippyshare.com\/.*?\/.*?\/file.html/gi).test(text)){
                     serv = "Zippyshare";
                     const zip = await zippy.extract(text);
                     downloadUrl = (zip.download) ? zip.download : false;
