@@ -9,6 +9,8 @@ const FileSync = require('lowdb/adapters/FileSync');
 const cron = require('node-cron');
 const zippy = require('zs-extract');
 const sysStats = require('./linux.js');
+const dood = require('./lib/dood.js');
+const MimeType = require('mime-types');
 
 const db_queue = new FileSync('./queue.json');
 const db = low(db_queue);
@@ -39,8 +41,8 @@ async function download(url, path, chatid, mesid) {
             await bot.telegram.editMessageText(chatid, mesid, null, estimasi, { parse_mode: 'html' });
         }
     })
-    const buffer = await response.buffer();
-    await fs.outputFile(fixPath, buffer, {flag: 'a'}).then(() => {
+    const buffer = await response.arrayBuffer();
+    await fs.outputFile(fixPath, Buffer.from(buffer), {flag: 'a'}).then(() => {
         result = `Saved to ${fixPath}`;
     }).catch(err => {
         console.log(err)
@@ -49,15 +51,18 @@ async function download(url, path, chatid, mesid) {
     return result;
 }
 
-async function downloadQueue(queid, url, path, chatid) {
+async function downloadQueue(queid, url, hdr = false, path, chatid) {
     db.get('queue').find({ id: queid }).assign({ isOnQueue: true}).write()
-    let opts = { method: 'GET',  retry: 3, callback: retry => { console.log(`Trying: ${retry}`) } }
+    let headers = {}
+    headers = hdr ? hdr : '';
+    let opts = { method: 'GET', headers: headers, retry: 3, callback: retry => { console.log(`Trying: ${retry}`) } }
     const response = await fetch(url, opts);
     const disposition = response.headers.get('content-disposition');
+    const getMime = MimeType.extension(response.headers.get('content-type'))
     const filename = (disposition) ? disposition.match(/filename="(.*?)"/) : false;
-    let fixPath = (filename) ? path+filename[1] : path;
-    const buffer = await response.buffer();
-    await fs.outputFile(fixPath, buffer, {flag: 'a'}).then(() => {
+    let fixPath = (filename) ? path+filename[1] : (getMime) ? `${path}.${getMime}` : path;
+    const buffer = await response.arrayBuffer();
+    await fs.outputFile(fixPath, Buffer.from(buffer), {flag: 'a'}).then(() => {
         result = `Saved to ${fixPath}`;
     }).catch(err => {
         console.log(err)
@@ -107,7 +112,7 @@ bot.help((ctx) => ctx.reply('Kirim file untuk backup pada local server'));
 bot.command('download', (ctx) => ctx.reply('URL?', Markup.forceReply(true).selective(true)));
 
 bot.command('dl', async (ctx) => {
-    let downloadUrl;
+    let downloadUrl, headers;
     let serv = "none";
     const { message: { reply_to_message, from: { id, username, first_name } } } = ctx;
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
@@ -122,12 +127,22 @@ bot.command('dl', async (ctx) => {
                     const zip = await zippy.extract(url);
                     downloadUrl = (zip.download) ? zip.download : false;
                     filename = (downloadUrl) ? zip.filename : filename;
+                } else if(url.match(dood.pattern)){
+                    serv = "Dood";
+                    const getDood = await dood.get(url);
+                    downloadUrl = getDood.dl_link;
+                    filename = getDood.title;
+                    headers = getDood.headers;
                 } else {
                     downloadUrl = url;
                 }
 
+                if (!downloadUrl){
+                    return await ctx.reply("Undefined downloadUrl");
+                }
+
                 let queueId = (Math.random() + 1).toString(36).substring(7);
-                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, path: `${savePath}/${first_name}/Downloads/${filename}`, isOnQueue: false }).write();
+                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, headers: headers, path: `${savePath}/${first_name}/Downloads/${filename}`, isOnQueue: false }).write();
                 let extn = (serv == "none") ? `` : `\n<b>Service:</b> ${serv}\n<b>Download url:</b> ${downloadUrl}`;
                 (addque) ? await ctx.replyWithHTML(`Added to queue with id ( <b>${queueId}</b> )${extn}`, { disable_web_page_preview: true }) : await ctx.reply("Fail to add queue");
             } else {
@@ -190,7 +205,7 @@ bot.on('video', async (ctx) => {
 });
 
 bot.on('text', async (ctx) => {
-    let downloadUrl;
+    let downloadUrl, headers;
     let serv = "none";
     const { message: { reply_to_message, text, from: { id, username, first_name } } } = ctx
     if (!special_user.includes(username)) return await ctx.reply(`You Don't Have Permission to Access`);
@@ -206,12 +221,18 @@ bot.on('text', async (ctx) => {
                     const zip = await zippy.extract(text);
                     downloadUrl = (zip.download) ? zip.download : false;
                     filename = (downloadUrl) ? zip.filename : filename;
+                } else if(url.match(dood.pattern)){
+                    serv = "Dood";
+                    const getDood = await dood.get(url);
+                    downloadUrl = getDood.dl_link;
+                    filename = getDood.title;
+                    headers = getDood.headers;
                 } else {
                     downloadUrl = text;
                 }
 
                 let queueId = (Math.random() + 1).toString(36).substring(7);
-                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, path: `${savePath}/${first_name}/Downloads/${filename}`, isOnQueue: false }).write();
+                const addque = db.get('queue').push({ id: queueId, chatid: id, link: downloadUrl, headers: headers, path: `${savePath}/${first_name}/Downloads/${filename}`, isOnQueue: false }).write();
                 let extn = (serv == "none") ? `` : `\n<b>Service:</b> ${serv}\n<b>Download url:</b> ${downloadUrl}`;
                 (addque) ? await ctx.replyWithHTML(`Added to queue with id ( <b>${queueId}</b> )${extn}`, { disable_web_page_preview: true }) : await ctx.reply("Fail to add queue");
             } else {
@@ -230,7 +251,7 @@ cron.schedule(`* * * * *`, () => {
         if(getQue){
             console.log(`[!] Processing queue with ID : ${getQue.id}`);
             await bot.telegram.sendMessage(getQue.chatid, `Processing queue with ID : ${getQue.id}`);
-            await downloadQueue(getQue.id, getQue.link, getQue.path, getQue.chatid);
+            await downloadQueue(getQue.id, getQue.link, getQue.headers, getQue.path, getQue.chatid);
             console.log(`[-] Queue ID (${getQue.id}) process complete `);
         }
     }

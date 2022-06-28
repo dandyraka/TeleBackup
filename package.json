@@ -4,10 +4,12 @@
     "start": "node run.js"
   },
   "dependencies": {
+    "axios": "^0.27.2",
     "dotenv": "^16.0.1",
     "fs": "^0.0.1-security",
     "fs-extra": "^10.1.0",
     "lowdb": "^1.0.0",
+    "mime-types": "^2.1.35",
     "node-cron": "^3.0.1",
     "node-fetch": "^3.2.6",
     "node-fetch-progress": "^1.0.2",
