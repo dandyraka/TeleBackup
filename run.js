@@ -221,14 +221,18 @@ bot.on('text', async (ctx) => {
                     const zip = await zippy.extract(text);
                     downloadUrl = (zip.download) ? zip.download : false;
                     filename = (downloadUrl) ? zip.filename : filename;
-                } else if(url.match(dood.pattern)){
+                } else if(text.match(dood.pattern)){
                     serv = "Dood";
-                    const getDood = await dood.get(url);
+                    const getDood = await dood.get(text);
                     downloadUrl = getDood.dl_link;
                     filename = getDood.title;
                     headers = getDood.headers;
                 } else {
                     downloadUrl = text;
+                }
+
+                if (!downloadUrl){
+                    return await ctx.reply("Undefined downloadUrl");
                 }
 
                 let queueId = (Math.random() + 1).toString(36).substring(7);
